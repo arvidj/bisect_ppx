@@ -29,6 +29,11 @@
     --hljs-type: #6f42c1;
     --hljs-meta: #22863a;
     --hljs-variable: #005cc5;
+
+    --only-removed: hsla(360, 100%, 20%, 1);
+    --both: hsla(181, 65%, 20%, 1);
+    --only-added: hsla(124, 77%, 10%, 1);
+    --removed-and-add: hsla(350, 60%, 30%, 1);
 }
 
 .dark:root {
@@ -141,10 +146,43 @@ h1 {
     color: var(--dirname-color);
 }
 
-h2 {
-    display: inline-block;
+#colors {
     position: relative;
+    display: inline-block;
     top: -1px;
+}
+
+.label div {
+    padding: 0 5px 0 5px;
+}
+
+#colors-only-removed {
+    display: inline-block;
+    background-color: var(--only-removed);
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+}
+
+#colors-only-added{
+    display: inline-block;
+    background-color: var(--only-added);
+}
+
+#colors-both {
+    display: inline-block;
+    background-color: var(--both);
+}
+
+#colors-removed-and-add {
+    display: inline-block;
+    background-color: var(--removed-and-add);
+}
+
+#colors-grey {
+    display: inline-block;
+    background-color: grey;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
 }
 
 #footer {
@@ -221,19 +259,19 @@ a[id] {
 }
 
 #lines-layer .both {
-    background-color: #150
+    background-color: var(--both);
 }
 
 #lines-layer .only-removed {
-    background-color: rgba(255, 0, 0, 0.1)
+    background-color: var(--only-removed);
 }
 
 #lines-layer .removed-and-add {
-    background-color: rgba(255, 100, 0, 0.1)
+    background-color: var(--removed-and-add)
 }
 
 #lines-layer .only-added {
-    background-color: #288
+    background-color: var(--only-added);
 }
 
 
@@ -242,15 +280,15 @@ code span[data-count] {
 }
 
 code span[data-count="0"] {
-    background-color: #150;
+    background-color: var(--both);
 }
 
 code span[data-count="1"] {
-    background-color: #288;
+    background-color: var(--only-added);
 }
 
 code span[data-count="2"] {
-    background-color: rgba(255, 128, 128, 1.0);
+    background-color: var(--only-removed);
 }
 
 code span[data-count="3"] {
@@ -416,9 +454,9 @@ a[id]:target + .some-visited {
     display: inline-block;
     position: relative;
     top: 3px;
-    width: 5em;
+    width: 6em;
     height: 1em;
-    background-color: var(--meter-unvisited-color);
+    background-color: grey;
 }
 
 .covered {
@@ -430,10 +468,47 @@ a[id]:target + .some-visited {
     border-right: 1px solid var(--meter-separator-color);
 }
 
+.only-removed {
+    display: inline-block;
+    position: left;
+    width: 50%;
+    height: 100%;
+    background-color: var(--only-removed);
+    /*border-right: 1px solid var(--meter-separator-color);*/
+}
+
+
+.only-added {
+    display: inline-block;
+    position: left;
+    width: 50%;
+    height: 100%;
+    background-color: var(--only-added);
+    /*border-right: 1px solid var(--meter-separator-color);*/
+}
+
+
+.removed_and_add {
+    display: inline-block;
+    position: left;
+    width: 50%;
+    height: 100%;
+    background-color: var(--removed-and-add);
+    /* border-right: 1px solid var(--meter-separator-color); */
+}
+
+.both {
+    display: inline-block;
+    position: left;
+    width: 50%;
+    height: 100%;
+    background-color: var(--both);
+    /* border-right: 1px solid var(--meter-separator-color); */
+}
 
 .percentage {
     display: inline-block;
-    width: 4em;
+    width: 14em;
     font-size: 90%;
     color: var(--color);
 }
