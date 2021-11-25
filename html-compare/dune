@@ -1,0 +1,9 @@
+(library
+ (name foo)
+ (instrumentation (backend bisect_ppx))
+ (modules foo))
+
+(test
+ (name test)
+ (libraries foo)
+ (modules test))
