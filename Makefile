@@ -120,3 +120,35 @@ self-coverage-test :
 	  _build/install/default/bin/meta-bisect-ppx-report \
 	    summary bisect*.meta --verbose
 	@echo See _coverage/index.html
+
+
+only-removed: build
+	_build/install/default/bin/bisect-ppx-report compare-html \
+		--source-path html-compare/ \
+		-x html-compare/only-removed/x.coverage \
+		-y html-compare/only-removed/y.coverage
+
+only-added: build
+	_build/install/default/bin/bisect-ppx-report compare-html \
+		--source-path html-compare/ \
+		-x html-compare/only-added/x.coverage \
+		-y html-compare/only-added/y.coverage
+
+
+removed-and-add: build
+	_build/install/default/bin/bisect-ppx-report compare-html \
+		--source-path html-compare/ \
+		-x html-compare/removed-and-add/x.coverage \
+		-y html-compare/removed-and-add/y.coverage
+
+both: build
+	_build/install/default/bin/bisect-ppx-report compare-html \
+		--source-path html-compare/ \
+		-x html-compare/both/x.coverage \
+		-y html-compare/both/y.coverage
+
+mix: build
+	_build/install/default/bin/bisect-ppx-report compare-html \
+		--source-path html-compare/ \
+		-x html-compare/mix/x.coverage \
+		-y html-compare/mix/y.coverage
