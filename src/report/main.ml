@@ -134,53 +134,85 @@ let set_verbose verbose x =
   Util.verbose := verbose;
   x
 
+(** {2. Html like reports} *)
 
+let to_directory =
+  Arg.(
+    value @@ opt string "./_coverage"
+    @@ info [ "o" ] ~docv:"DIRECTORY" ~doc:"Output directory.")
 
-(* Subcommands. *)
+let title =
+  Arg.(
+    value
+    @@ opt string "Coverage report"
+    @@ info [ "title" ] ~docv:"STRING"
+         ~doc:"Report title for use in HTML pages.")
+
+let tab_size =
+  Arg.(
+    value @@ opt int 2
+    @@ info [ "tab-size" ] ~docv:"N"
+         ~doc:"Set TAB width for replacing TAB characters in HTML pages.")
+
+let theme =
+  Arg.(
+    value
+    @@ opt (enum [ ("light", `Light); ("dark", `Dark); ("auto", `Auto) ]) `Auto
+    @@ info [ "theme" ] ~docv:"THEME"
+         ~doc:
+           ("$(i,light) or $(i,dark). The default value, $(i,auto), causes "
+          ^ "the report's theme to adapt to system or browser preferences."))
+
+(** {3. Compare html } *)
+let compare_html =
+  let cov_x =
+    Arg.(value & opt string "" & info [ "x"; "coverage_x" ] ~doc:"Coverage X")
+  in
+  let cov_y =
+    Arg.(value & opt string "" & info [ "y"; "coverage_y" ] ~doc:"Coverage Y")
+  in
+  let call_with_labels to_directory title tab_size theme source_paths
+      ignore_missing_files cov_x cov_y =
+    Html_compare.output ~to_directory ~title ~tab_size ~theme ~source_paths
+      ~ignore_missing_files ~cov_x ~cov_y
+  in
+  ( Term.(
+      const set_verbose $ verbose $ const call_with_labels $ to_directory
+      $ title $ tab_size $ theme $ source_paths $ ignore_missing_files $ cov_x
+      $ cov_y),
+    term_info "compare-html" ~doc:"Compare HTML report locally."
+      ~man:
+        [
+          `S "USAGE EXAMPLE";
+          `P "Run";
+          `Pre "    bisect-ppx-report html";
+          `P
+            ("Then view the generated report at _coverage/index.html with your "
+           ^ "browser. All arguments are optional.");
+        ] )
+
+(** {3. Classic html } *)
 
 let html =
-  let to_directory =
-    Arg.(value @@ opt string "./_coverage" @@
-      info ["o"] ~docv:"DIRECTORY" ~doc:"Output directory.")
+  let call_with_labels to_directory title tab_size theme coverage_files
+      coverage_paths source_paths ignore_missing_files expect do_not_expect =
+    Html.output ~to_directory ~title ~tab_size ~theme ~coverage_files
+      ~coverage_paths ~source_paths ~ignore_missing_files ~expect ~do_not_expect
   in
-  let title =
-    Arg.(value @@ opt string "Coverage report" @@
-      info ["title"] ~docv:"STRING" ~doc:"Report title for use in HTML pages.")
-  in
-  let tab_size =
-    Arg.(value @@ opt int 2 @@
-      info ["tab-size"] ~docv:"N" ~doc:
-        "Set TAB width for replacing TAB characters in HTML pages.")
-  in
-  let theme =
-    Arg.(value @@
-      opt (enum ["light", `Light; "dark", `Dark; "auto", `Auto]) `Auto @@
-      info ["theme"] ~docv:"THEME" ~doc:
-        ("$(i,light) or $(i,dark). The default value, $(i,auto), causes " ^
-        "the report's theme to adapt to system or browser preferences."))
-  in
-
-  let call_with_labels
-      to_directory title tab_size theme coverage_files coverage_paths
-      source_paths ignore_missing_files expect do_not_expect =
-    Html.output
-      ~to_directory ~title ~tab_size ~theme ~coverage_files ~coverage_paths
-      ~source_paths ~ignore_missing_files ~expect ~do_not_expect
-  in
-  Term.(const set_verbose $ verbose $ const call_with_labels $ to_directory
-    $ title $ tab_size $ theme $ coverage_files 0 $ coverage_paths
-    $ source_paths $ ignore_missing_files $ expect $ do_not_expect),
-  term_info "html" ~doc:"Generate HTML report locally."
-    ~man:[
-      `S "USAGE EXAMPLE";
-      `P "Run";
-      `Pre "    bisect-ppx-report html";
-      `P
-        ("Then view the generated report at _coverage/index.html with your " ^
-        "browser. All arguments are optional.")
-    ]
-
-
+  ( Term.(
+      const set_verbose $ verbose $ const call_with_labels $ to_directory
+      $ title $ tab_size $ theme $ coverage_files 0 $ coverage_paths
+      $ source_paths $ ignore_missing_files $ expect $ do_not_expect),
+    term_info "html" ~doc:"Generate HTML report locally."
+      ~man:
+        [
+          `S "USAGE EXAMPLE";
+          `P "Run";
+          `Pre "    bisect-ppx-report html";
+          `P
+            ("Then view the generated report at _coverage/index.html with your "
+           ^ "browser. All arguments are optional.");
+        ] )
 
 let send_to =
   let service =
@@ -275,19 +307,20 @@ let merge =
 (* Entry point. *)
 
 let () =
-  Term.(eval_choice
-    (ret (const (`Help (`Auto, None))),
-    term_info
-      "bisect-ppx-report"
-      ~doc:"Generate coverage reports for OCaml and Reason."
-      ~man:[
-        `S "USAGE EXAMPLE";
-        `Pre
-          ("bisect-ppx-report html\nbisect-ppx-report send-to Coveralls\n" ^
-          "bisect-ppx-report summary");
-        `P
-          ("See bisect-ppx-report $(i,COMMAND) --help for further " ^
-          "information on each command, including options.")
-      ]))
-    [html; send_to; text; cobertura; coveralls; merge]
+  Term.(
+    eval_choice
+      ( ret (const (`Help (`Auto, None))),
+        term_info "bisect-ppx-report"
+          ~doc:"Generate coverage reports for OCaml and Reason."
+          ~man:
+            [
+              `S "USAGE EXAMPLE";
+              `Pre
+                ("bisect-ppx-report html\nbisect-ppx-report send-to Coveralls\n"
+               ^ "bisect-ppx-report summary");
+              `P
+                ("See bisect-ppx-report $(i,COMMAND) --help for further "
+               ^ "information on each command, including options.");
+            ] ))
+    [ compare_html; html; send_to; text; cobertura; coveralls; merge ]
   |> Term.exit

@@ -220,6 +220,45 @@ a[id] {
     background-color: var(--somevisited-color);
 }
 
+#lines-layer .both {
+    background-color: #150
+}
+
+#lines-layer .only-removed {
+    background-color: rgba(255, 0, 0, 0.1)
+}
+
+#lines-layer .removed-and-add {
+    background-color: rgba(255, 100, 0, 0.1)
+}
+
+#lines-layer .only-added {
+    background-color: #288
+}
+
+
+code span[data-count] {
+    background-color: var(--visited-number-color);
+}
+
+code span[data-count="0"] {
+    background-color: #150;
+}
+
+code span[data-count="1"] {
+    background-color: #288;
+}
+
+code span[data-count="2"] {
+    background-color: rgba(255, 128, 128, 1.0);
+}
+
+code span[data-count="3"] {
+    background-color: inherit;
+}
+
+
+
 a[id]:target + span {
     -webkit-animation: highlight-blank 0.5s;
     -moz-animation: highlight-blank 0.5s;
@@ -353,13 +392,6 @@ a[id]:target + .some-visited {
     background-color: var(--visted-number-color);
 }
 
-code span[data-count] {
-    background-color: var(--visited-number-color);
-}
-
-code span[data-count="0"] {
-    background-color: var(--unvisited-number-color);
-}
 
 #tool-tip {
     display: none;
@@ -397,6 +429,7 @@ code span[data-count="0"] {
     background-color: var(--meter-visited-color);
     border-right: 1px solid var(--meter-separator-color);
 }
+
 
 .percentage {
     display: inline-block;
