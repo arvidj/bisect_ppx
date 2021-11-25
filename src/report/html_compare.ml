@@ -513,8 +513,10 @@ let output_string_to_separate_file content filename =
       close_out_noerr channel;
       raise exn
 
-let output ~to_directory ~title ~tab_size ~theme ~source_paths
-    ~ignore_missing_files ~cov_x ~cov_y =
+let output ~to_directory ~title ~tab_size ~source_paths ~ignore_missing_files
+    ~cov_x ~cov_y =
+  let theme = `Dark in
+
   let cov_x = coverage cov_x in
   let cov_y = coverage cov_y in
 

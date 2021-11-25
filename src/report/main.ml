@@ -171,14 +171,14 @@ let compare_html =
   let cov_y =
     Arg.(value & opt string "" & info [ "y"; "coverage_y" ] ~doc:"Coverage Y")
   in
-  let call_with_labels to_directory title tab_size theme source_paths
+  let call_with_labels to_directory title tab_size source_paths
       ignore_missing_files cov_x cov_y =
-    Html_compare.output ~to_directory ~title ~tab_size ~theme ~source_paths
+    Html_compare.output ~to_directory ~title ~tab_size ~source_paths
       ~ignore_missing_files ~cov_x ~cov_y
   in
   ( Term.(
       const set_verbose $ verbose $ const call_with_labels $ to_directory
-      $ title $ tab_size $ theme $ source_paths $ ignore_missing_files $ cov_x
+      $ title $ tab_size $ source_paths $ ignore_missing_files $ cov_x
       $ cov_y),
     term_info "compare-html" ~doc:"Compare HTML report locally."
       ~man:
