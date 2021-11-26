@@ -556,7 +556,8 @@ let output ~to_directory ~title ~tab_size ~source_paths ~ignore_missing_files
          match compare x.only_removed y.only_removed with
          | 0 -> compare x.removed_and_add y.removed_and_add
          | x -> x)
-       files);
+       files
+    |> List.rev);
 
   (* Write the asset files. *)
   output_string_to_separate_file Assets.js
