@@ -29,7 +29,7 @@ module Status_line = struct
 
   type merge = { removed : int; both : int; added : int; ignored : int }
 
-  let print_merge m =
+  let _print_merge m =
     Printf.printf
       {|{
      removed : %d;
@@ -39,7 +39,7 @@ module Status_line = struct
 }|}
       m.removed m.both m.added m.ignored
 
-  let print_list l =
+  let _print_list l =
     print_string "[";
     List.iter (fun x -> Printf.printf " %s;" (to_string x)) l;
     print_string "]\n"
@@ -138,7 +138,7 @@ let coverage cov =
   Input.load_coverage ~coverage_files:[ cov ] ~coverage_paths:[] ~expect:[]
     ~do_not_expect:[]
 
-let merge_counts k x y =
+let merge_counts _k x y =
   assert (x.filename = y.filename);
   assert (x.points = y.points);
 
@@ -315,6 +315,7 @@ let output_for_source_file tab_size title theme source_file_on_disk
   let stats = ref (0, 0) in
   let points =
     points
+    |> Array.to_list
     |> List.mapi (fun index offset -> (offset, index))
     |> List.sort compare
   in
