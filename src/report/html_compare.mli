@@ -4,6 +4,10 @@ val output :
   tab_size:int ->
   source_paths:string list ->
   ignore_missing_files:bool ->
-  cov_x:string ->
-  cov_y:string ->
+  cov_from:string ->
+  cov_to:string ->
+  ?cov_from_label:string ->
+  ?cov_to_label:string ->
+  theme:[ `Light | `Dark | `Auto ] ->
+  unit ->
   unit

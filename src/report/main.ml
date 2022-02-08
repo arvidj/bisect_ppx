@@ -33,17 +33,17 @@ let term_info = Term.info ~sdocs:"COMMON OPTIONS"
 let coverage_files from_position =
   Arg.(value @@ pos_right (from_position - 1) string [] @@
     info [] ~docv:"COVERAGE_FILES" ~doc:
-      ("Optional list of *.coverage files produced during testing. If not " ^
-      "specified, and $(b,--coverage-path) is also not specified, " ^
-      "bisect-ppx-report will search for *.coverage files non-recursively " ^
+      ("Optional list of *.from-coverage files produced during testing. If not " ^
+      "specified, and $(b,--from-coverage-path) is also not specified, " ^
+      "bisect-ppx-report will search for *.from-coverage files non-recursively " ^
       "in ./ and recursively in ./_build/, and, if run under esy, inside " ^
       "the esy sandbox. If run inside an explicit Dune workspace, ./_build/ " ^
       "is taken relative to the workspace root."))
 
 let coverage_paths =
   Arg.(value @@ opt_all string [] @@
-    info ["coverage-path"] ~docv:"DIRECTORY" ~doc:
-      ("Directory in which to look for .coverage files. This option can be " ^
+    info ["from-coverage-path"] ~docv:"DIRECTORY" ~doc:
+      ("Directory in which to look for .from-coverage files. This option can be " ^
       "specified multiple times. The search is recursive in each directory."))
 
 let to_file =
@@ -104,7 +104,7 @@ let parallel =
 let expect =
   Arg.(value @@ opt_all string [] @@
     info ["expect"] ~docv:"PATH" ~docs:"COMMON OPTIONS" ~doc:
-      ("Check that the files at $(i,PATH) are included in the coverage " ^
+      ("Check that the files at $(i,PATH) are included in the from-coverage " ^
       "report. This option can be given multiple times. If $(i,PATH) ends " ^
       "with a path separator (slash), it is treated as a directory name. " ^
       "The reporter scans the directory recursively, and expects all files " ^
@@ -165,21 +165,31 @@ let theme =
 
 (** {3. Compare html } *)
 let compare_html =
-  let cov_x =
-    Arg.(value & opt string "" & info [ "x"; "coverage_x" ] ~doc:"Coverage X")
+  let cov_from =
+    Arg.(value & opt string "" & info [ "from"; "from-coverage" ] ~doc:"Coverage from")
   in
-  let cov_y =
-    Arg.(value & opt string "" & info [ "y"; "coverage_y" ] ~doc:"Coverage Y")
+  let cov_to =
+    Arg.(value & opt string "" & info [ "to"; "to-coverage" ] ~doc:"Coverage to")
+  in
+  let cov_from_label =
+    Arg.(value & opt string "" & info [ "from-label"; "from-coverage-label" ]
+                                   ~doc:"Coverage-from label")
+  in
+  let cov_to_label =
+    Arg.(value & opt string "" & info [ "to-label"; "to-coverage-label" ]
+                                   ~doc:"Coverage-to label")
   in
   let call_with_labels to_directory title tab_size source_paths
-      ignore_missing_files cov_x cov_y =
+        ignore_missing_files cov_from cov_to cov_from_label
+        cov_to_label theme  =
     Html_compare.output ~to_directory ~title ~tab_size ~source_paths
-      ~ignore_missing_files ~cov_x ~cov_y
+      ~ignore_missing_files ~cov_from ~cov_to ~cov_from_label
+        ~cov_to_label ~theme ()
   in
   ( Term.(
       const set_verbose $ verbose $ const call_with_labels $ to_directory
-      $ title $ tab_size $ source_paths $ ignore_missing_files $ cov_x
-      $ cov_y),
+      $ title $ tab_size $ source_paths $ ignore_missing_files $ cov_from
+      $ cov_to $ cov_from_label $ cov_to_label $ theme),
     term_info "compare-html" ~doc:"Compare HTML report locally."
       ~man:
         [
@@ -224,7 +234,7 @@ let send_to =
     Arg.(value @@ flag @@
       info ["dry-run"] ~doc:
         ("Don't issue the final upload command and don't delete the " ^
-        "intermediate coverage report file."))
+        "intermediate from-coverage report file."))
   in
 
   let call_with_labels
@@ -248,7 +258,7 @@ let send_to =
 let text =
   let per_file =
     Arg.(value @@ flag @@
-      info ["per-file"] ~doc:"Include coverage per source file.")
+      info ["per-file"] ~doc:"Include from-coverage per source file.")
   in
 
   let call_with_labels
@@ -257,7 +267,7 @@ let text =
   in
   Term.(const set_verbose $ verbose $ const call_with_labels
     $ per_file $ coverage_files 0 $ coverage_paths $ expect $ do_not_expect),
-  term_info "summary" ~doc:"Write coverage summary to STDOUT."
+  term_info "summary" ~doc:"Write from-coverage summary to STDOUT."
 
 
 
@@ -302,7 +312,7 @@ let merge =
   in
   Term.(const set_verbose $ verbose $ const call_with_labels $ to_file
     $ coverage_files 1 $ coverage_paths),
-  term_info "merge" ~doc:"Merge coverage files"
+  term_info "merge" ~doc:"Merge from-coverage files"
 
 (* Entry point. *)
 
@@ -311,7 +321,7 @@ let () =
     eval_choice
       ( ret (const (`Help (`Auto, None))),
         term_info "bisect-ppx-report"
-          ~doc:"Generate coverage reports for OCaml and Reason."
+          ~doc:"Generate from-coverage reports for OCaml and Reason."
           ~man:
             [
               `S "USAGE EXAMPLE";

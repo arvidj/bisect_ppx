@@ -89,48 +89,122 @@ module Status_line = struct
     | _ -> Ignore
 
   type stat = {
-    only_removed : float;
-    removed_and_add : float;
-    both : float;
-    only_added : float;
+    only_removed : int;
+    removed_and_add : int;
+    both : int;
+    only_added : int;
+    total : int;
   }
+
+  let pp_stat {
+          only_removed ;
+          removed_and_add ;
+          both;
+          only_added;
+          total
+        } =
+    Printf.sprintf "{only_removed = %d; removed_and_add = %d; both = %d; only_added = %d; total = %d}"
+      only_removed
+      removed_and_add 
+      both
+      only_added
+      total
+
+  let stat_empty = {
+      only_removed = 0 ;
+      removed_and_add = 0 ;
+      both = 0;
+      only_added = 0;
+      total = 0
+    }
+
+  let stat_add { only_removed; removed_and_add; both; only_added; total } b =
+    {
+      only_removed = b.only_removed + only_removed;
+      removed_and_add = b.removed_and_add + removed_and_add;
+      both = b.both + both;
+      only_added = b.only_added + only_added;
+      total = b.total + total;
+    }
 
   let stat_from_lines lines =
     let only_removed = ref 0 in
     let removed_and_add = ref 0 in
     let both = ref 0 in
     let only_added = ref 0 in
-    let total = List.length lines |> Float.of_int in
+    let total = ref 0 in
 
     let () =
       List.iter
         (function
-          | Only_removed -> incr only_removed
-          | Removed_and_add -> incr removed_and_add
-          | Both -> incr both
-          | Only_added -> incr only_added
-          | Ignore -> ())
+          | Only_removed -> incr only_removed; incr total
+          | Removed_and_add -> incr removed_and_add; incr total
+          | Both -> incr both; incr total
+          | Only_added -> incr only_added; incr total
+          | Ignore -> incr total)
         lines
     in
+    (* todo: hack to have 100% in files with no visitable lines *)
+    if !total = 0 then
+      {stat_empty with both = 1; total = 1}
+    else
+      {
+        only_removed = !only_removed;
+        removed_and_add = !removed_and_add;
+        both = !both;
+        only_added = !only_added;
+        total = !total;
+      }
+
+  let percentage_from_stat { only_removed; removed_and_add; both; only_added; total } =
     let open Float in
-    {
-      only_removed = of_int !only_removed /. total;
-      removed_and_add = of_int !removed_and_add /. total;
-      both = of_int !both /. total;
-      only_added = of_int !only_added /. total;
-    }
+    let total = of_int total in
+    let only_removed = of_int only_removed /. total in
+    let removed_and_add = of_int removed_and_add /. total in
+    let both = of_int both /. total in
+    let only_added = of_int only_added /. total in
+
+    let pct x = floor (x *. 100.0) |> Printf.sprintf "%.00f" in
+
+    let pct_only_removed = pct only_removed in
+    let pct_removed_and_add = pct removed_and_add in
+    let pct_both = pct both in
+    let pct_only_added = pct only_added in
+    let pct_ignore =
+      pct
+        (1.0 -.
+           (only_removed +. both +. only_added +. removed_and_add))
+    in
+    (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore)
 end
 
-let colors_chart ?(only_removed = "Lost coverage")
-    ?(removed_and_add = "Mix of loss and win") ?(both = "Covered in both")
-    ?(only_added = "Win coverage") ?(grey = "Not covered in both")
-    ?(with_grey = false) () =
+let colors_chart
+      ?(with_titles = false)
+      ?(with_tooltips = false)
+      ?(with_grey = false)
+      ~cov_from_label
+      ~cov_to_label
+      ~only_removed
+      ~removed_and_add
+      ~both
+      ~only_added
+      ~grey () =
+  let box t cls s  =
+    Printf.sprintf
+      {|<div %sid="%s">%s</div>|}
+      (if with_tooltips then Printf.sprintf {|title="%s" |} t else "")
+      cls
+      (if with_titles then t ^ ": " ^ s else s)
+  in
   Printf.sprintf
     {|<div class="label" id="colors">
-       <div id="colors-only-removed">%s</div><div id="colors-removed-and-add">%s</div><div id="colors-both">%s</div><div id="colors-only-added">%s</div>%s
+       %s%s%s%s%s
    </div>|}
-    only_removed removed_and_add both only_added
-    (if with_grey then {|<div id="colors-grey">|} ^ grey ^ "</div>" else "")
+    (box ("Coverage lost from " ^ cov_from_label) "colors-only-removed" only_removed)
+    (box "Mix of loss and win" "colors-removed-and-add" removed_and_add)
+    (box "Covered in both" "colors-both" both)
+    (box ("Coverage won in " ^ cov_to_label) "colors-only-added" only_added)
+    (if with_grey then (box "Covered in neither" "colors-grey" grey) else "")
 
 let coverage cov =
   if cov = "" then raise (Invalid_argument "--x and --y must be present");
@@ -147,15 +221,15 @@ let merge_counts _k x y =
   in
   { filename = x.filename; points = x.points; counts }
 
-let merge cov_x cov_y : coverage =
+let merge cov_from cov_to : coverage =
   let coverage = Hashtbl.create 17 in
   let () =
     Hashtbl.iter
       (fun k v ->
         let x = v in
-        let y = Hashtbl.find cov_y k in
+        let y = Hashtbl.find cov_to k in
         Hashtbl.add coverage k (merge_counts k x y))
-      cov_x
+      cov_from
   in
   coverage
 
@@ -163,6 +237,9 @@ let theme_class = function
   | `Light -> {| class="light"|}
   | `Dark -> {| class="dark"|}
   | `Auto -> ""
+
+let make_title ~cov_from_label ~cov_to_label title =
+  Printf.sprintf "%s [%s vs. %s]" title cov_from_label cov_to_label
 
 let split_filename name =
   let dirname =
@@ -177,7 +254,7 @@ let split_filename name =
 let percentage (visited, total) =
   if total = 0 then 100. else 100. *. float_of_int visited /. float_of_int total
 
-let output_html_index title theme filename
+let output_html_index ~title theme filename ~cov_from_label ~cov_to_label
     (files : (string * string * Status_line.stat) list) =
   Util.info "Writing index file...";
 
@@ -189,13 +266,24 @@ let output_html_index title theme filename
   try
     let write format = Printf.fprintf channel format in
 
+    let stats_total =
+      List.fold_left
+        (fun acc (_, _, stats) -> Status_line.stat_add acc stats)
+        Status_line.stat_empty
+        files
+    in
+    
+    let (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore) =
+      Status_line.percentage_from_stat stats_total in
+
+    let title = make_title ~cov_from_label ~cov_to_label title in
     write
       {|<!DOCTYPE html>
 <html lang="en"%s>
   <head>
     <meta charset="utf-8"/>
     <title>%s</title>
-    <meta name="description" content="%s coverage overall"/>
+    <meta name="description" content="Coverage comparison of %s and %s"/>
     <link rel="stylesheet" type="text/css" href="coverage.css"/>
   </head>
   <body>
@@ -205,39 +293,46 @@ let output_html_index title theme filename
     </div>
     <div id="files">
 |}
-      (theme_class theme) title "foo" title
-      (colors_chart ~with_grey:true ());
+      (theme_class theme)
+      title
+      cov_from_label cov_to_label
+      title
+      (colors_chart
+                ~with_grey:true
+                ~with_titles:true
+                ~cov_to_label
+                ~cov_from_label
+                ~only_removed:(pct_only_removed ^ "%")
+                ~removed_and_add:(pct_removed_and_add ^ "%")
+                ~both:(pct_both ^ "%")
+                ~only_added:(pct_only_added ^ "%")
+                ~grey:(pct_ignore ^ "%")
+                ()) ;
 
+    let null = open_out "/dev/null" in
     files
-    |> List.iter (fun (name, html_file, stats) ->
-           let percentage_only_removed =
-             Float.floor (Status_line.(stats.only_removed) *. 100.0)
-             |> Printf.sprintf "%.00f"
+    |> List.iter (fun (
+                    name,
+                    html_file,
+                    stats
+                  ) ->
+           let dbg =
+             let ch =
+               if
+                 (* name = "src/lib_shell/validator_event.ml" *)
+                 name = "src/lib_base/tzPervasives.ml"
+               then
+                 Unix.out_channel_of_descr Unix.stderr
+               else
+                 null
+             in Printf.fprintf ch
            in
+           dbg "Name: %s\n" name ;
 
-           let percentage_removed_and_add =
-             Float.floor (Status_line.(stats.removed_and_add) *. 100.0)
-             |> Printf.sprintf "%.00f"
-           in
-           let percentage_both =
-             Float.floor (Status_line.(stats.both) *. 100.0)
-             |> Printf.sprintf "%.00f"
-           in
-
-           let percentage_only_added =
-             Float.floor (Status_line.(stats.only_added) *. 100.0)
-             |> Printf.sprintf "%.00f"
-           in
-
-           let percentage_ignore =
-             Printf.sprintf "%.00f"
-             @@ Float.floor
-                  (100.0
-                  -. ((Status_line.(stats.only_removed) *. 100.0)
-                     +. (Status_line.(stats.both) *. 100.0)
-                     +. ((Status_line.(stats.only_added) *. 100.0)
-                        +. (Status_line.(stats.removed_and_add) *. 100.0))))
-           in
+           dbg "Stat: %s\n" (Status_line.pp_stat stats) ;
+           
+           let (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore) =
+             Status_line.percentage_from_stat stats in
 
            let dirname, basename = split_filename name in
            let relative_html_file =
@@ -258,14 +353,18 @@ let output_html_index title theme filename
         </a>
       </div>
               |}
-             percentage_only_removed percentage_removed_and_add percentage_both
-             percentage_only_added
+             pct_only_removed pct_removed_and_add pct_both pct_only_added
              (colors_chart
-                ~only_removed:(percentage_only_removed ^ "%")
-                ~removed_and_add:(percentage_removed_and_add ^ "%")
-                ~both:(percentage_both ^ "%")
-                ~only_added:(percentage_only_added ^ "%")
-                ~grey:(percentage_ignore ^ "%") ~with_grey:true ())
+                ~with_grey:true
+                ~with_tooltips:true
+                ~cov_to_label
+                ~cov_from_label
+                ~only_removed:(pct_only_removed ^ "%")
+                ~removed_and_add:(pct_removed_and_add ^ "%")
+                ~both:(pct_both ^ "%")
+                ~only_added:(pct_only_added ^ "%")
+                ~grey:(pct_ignore ^ "%")
+                ())
              relative_html_file dirname basename);
 
     write {|    </div>
@@ -309,9 +408,13 @@ let escape_line tab_size line offset points =
 
 (* Individual HTML files corresponding to each source file. *)
 
-let output_for_source_file tab_size title theme source_file_on_disk
+let output_for_source_file
+      tab_size
+      ~title
+      ~cov_from_label
+      ~cov_to_label
+      theme source_file_on_disk
     html_file_on_disk { Bisect_common.filename; points; counts } =
-  let len = Array.length counts in
   let stats = ref (0, 0) in
   let points =
     points
@@ -320,6 +423,7 @@ let output_for_source_file tab_size title theme source_file_on_disk
     |> List.sort compare
   in
   let pts =
+    let len = Array.length counts in
     ref
       (points
       |> List.map (fun (offset, index) ->
@@ -365,7 +469,7 @@ let output_for_source_file tab_size title theme source_file_on_disk
   let highlight_js = Filename.concat path_to_report_root "highlight.pack.js" in
   let index_html = Filename.concat path_to_report_root "index.html" in
   let lines_status = ref [] in
-  (try
+  let status_line_stats = (try
      let lines, line_count =
        let rec read number acc =
          let start_ofs = pos_in in_channel in
@@ -386,6 +490,12 @@ let output_for_source_file tab_size title theme source_file_on_disk
          with End_of_file -> (List.rev acc, number - 1)
        in
        read 1 []
+     in
+
+     let status_line_stats =
+       let merges = List.map Status_line.merge !lines_status in
+       let lines = List.map Status_line.to_line merges in
+       Status_line.stat_from_lines lines
      in
 
      let class_of_visited = function _ -> "" in
@@ -416,8 +526,25 @@ let output_for_source_file tab_size title theme source_file_on_disk
     </div>
     <div id="navbar">
 |}
-       (theme_class theme) basename title file_coverage filename style_css
-       highlight_js index_html dirname basename (colors_chart ());
+       (theme_class theme)
+       basename
+       (make_title ~cov_from_label ~cov_to_label title)
+       file_coverage filename style_css
+       highlight_js index_html dirname basename
+       (
+        let (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore) =
+             Status_line.percentage_from_stat status_line_stats in
+        colors_chart
+          ~with_grey:true
+          ~with_titles:true
+          ~cov_to_label
+          ~cov_from_label
+          ~only_removed:(pct_only_removed ^ "%")
+          ~removed_and_add:(pct_removed_and_add ^ "%")
+          ~both:(pct_both ^ "%")
+          ~only_added:(pct_only_added ^ "%")
+          ~grey:(pct_ignore ^ "%")
+          ());
 
      (* Navigation bar items. *)
      lines
@@ -483,18 +610,17 @@ let output_for_source_file tab_size title theme source_file_on_disk
   </body>
 </html>
 |}
-       coverage_js
+       coverage_js;
+     status_line_stats
    with e ->
      close_in_noerr in_channel;
      close_out_noerr out_channel;
-     raise e);
+     raise e) in
 
   close_in_noerr in_channel;
   close_out_noerr out_channel;
 
-  let merges = List.map Status_line.merge !lines_status in
-  let lines = List.map Status_line.to_line merges in
-  Status_line.stat_from_lines lines
+  status_line_stats
 
 (* Assets, such as CSS and JavaScript files. *)
 
@@ -515,13 +641,11 @@ let output_string_to_separate_file content filename =
       raise exn
 
 let output ~to_directory ~title ~tab_size ~source_paths ~ignore_missing_files
-    ~cov_x ~cov_y =
-  let theme = `Light in
+    ~cov_from ~cov_to ?(cov_from_label="from") ?(cov_to_label="to") ~theme () =
+  let cov_from = coverage cov_from in
+  let cov_to = coverage cov_to in
 
-  let cov_x = coverage cov_x in
-  let cov_y = coverage cov_y in
-
-  let coverage = merge cov_x cov_y in
+  let coverage = merge cov_from cov_to in
 
   (* Write each of the HTML files corresponding to each source file. *)
   Util.mkdirs to_directory;
@@ -541,7 +665,13 @@ let output ~to_directory ~title ~tab_size ~source_paths ~ignore_missing_files
             in
             let html_file_relative = filename ^ ".html" in
             let stats =
-              output_for_source_file tab_size title theme source_file_on_disk
+              output_for_source_file
+                tab_size
+                 ~title
+                 ~cov_from_label
+                 ~cov_to_label
+                theme
+                source_file_on_disk
                 html_file_on_disk file
             in
             (filename, html_file_relative, stats) :: acc)
@@ -549,7 +679,7 @@ let output ~to_directory ~title ~tab_size ~source_paths ~ignore_missing_files
   in
 
   (* Write the coverage report landing page. *)
-  output_html_index title theme
+  output_html_index ~title ~cov_from_label ~cov_to_label theme
     (Filename.concat to_directory "index.html")
     (List.sort
        (fun (name_x, _, _x) (name_y, _, _y) ->

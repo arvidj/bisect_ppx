@@ -165,8 +165,9 @@ h1 {
 }
 
 .label div {
-    padding: 0 5px 0 5px;
-    min-width: 2em;
+    padding: 0 4px;
+    min-width: 2.6em;
+    text-align: right;
 }
 
 #colors-only-removed {
@@ -521,8 +522,8 @@ a[id]:target + .some-visited {
 
 .percentage {
     display: inline-block;
-    width: 15em;
-    font-size: 90%;
+    /* width: 15em; */
+    font-size: 70%;
     color: var(--color);
 }
 
