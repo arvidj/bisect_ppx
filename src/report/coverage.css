@@ -30,10 +30,16 @@
     --hljs-meta: #22863a;
     --hljs-variable: #005cc5;
 
-    --only-removed: hsla(360, 100%, 20%, 1);
-    --both: hsla(181, 65%, 20%, 1);
-    --only-added: hsla(124, 77%, 10%, 1);
-    --removed-and-add: hsla(350, 60%, 30%, 1);
+    /* lost coverage */
+    --only-removed: var(--unvisited-number-color);
+    /* covered in both */
+    --both: rgba(34, 132, 34, 0.35);
+    /* lost coverage */
+    --only-added: var(--visited-number-color);
+    /* win coverage */
+    --removed-and-add: var(--somevisited-color);
+    /* not covered in both */
+    --not-covered-in-both: #ddd;
 }
 
 .dark:root {
@@ -67,6 +73,12 @@
     --hljs-type: #ac885b;
     --hljs-meta: #82aaff;
     --hljs-variable: #cf6a4c;
+
+    --only-removed: hsla(360, 100%, 20%, 1);
+    --both: hsla(181, 65%, 20%, 1);
+    --only-added: hsla(124, 77%, 10%, 1);
+    --removed-and-add: hsla(350, 60%, 30%, 1);
+    --not-covered-in-both: grey;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -181,7 +193,7 @@ h1 {
 
 #colors-grey {
     display: inline-block;
-    background-color: grey;
+    background-color: var(--not-covered-in-both);
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
 }
@@ -457,7 +469,7 @@ a[id]:target + .some-visited {
     top: 3px;
     width: 10em;
     height: 1em;
-    background-color: grey;
+    background-color: var(--not-covered-in-both);
 }
 
 .covered {
