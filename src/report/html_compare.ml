@@ -256,7 +256,7 @@ let colors_chart
       {|<div %sclass="%s">%s</div>|}
       (if with_tooltips then Printf.sprintf {|title="%s" |} (t ~html:false) else "")
       cls
-      (if with_titles then (t ~html:true) ^ ": " ^ s else s)
+      (if with_titles then (t ~html:false) ^ ": " ^ s else s)
   in
   let (removed, both, added, ignored) = match merge_stats_pcts with
     | None -> "-", "-", "-", "-"
