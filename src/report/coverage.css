@@ -158,7 +158,7 @@ h1 {
     color: var(--dirname-color);
 }
 
-#colors {
+.colors {
     position: relative;
     display: inline-block;
     top: -1px;
@@ -170,29 +170,29 @@ h1 {
     text-align: right;
 }
 
-#colors-only-removed {
+.colors-only-removed {
     display: inline-block;
     background-color: var(--only-removed);
     border-top-left-radius: 6px;
     border-bottom-left-radius: 6px;
 }
 
-#colors-only-added{
+.colors-only-added{
     display: inline-block;
     background-color: var(--only-added);
 }
 
-#colors-both {
+.colors-both {
     display: inline-block;
     background-color: var(--both);
 }
 
-#colors-removed-and-add {
+.colors-removed-and-add {
     display: inline-block;
     background-color: var(--removed-and-add);
 }
 
-#colors-grey {
+.colors-ignored {
     display: inline-block;
     background-color: var(--not-covered-in-both);
     border-top-right-radius: 6px;

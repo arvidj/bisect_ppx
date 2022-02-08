@@ -1,19 +1,27 @@
 open Bisect_common
 
 module Status_line = struct
-  type t = Both | Added | Removed | Ignore
+  (* comparison of the visits of the same point by two traces *)
+  type t =
+    Both
+  (* the point was visited in both traces *)
+  | Added
+  (* the point was visited in [to]-trace but not [from]-trace *)
+  | Removed
+  (* the point was visited in [from]-trace but not in [to]-trace *)
+  | Ignore
+  (* the point was not visited in either trace *)
 
-  let create x y =
-    if x <= 0 && y <= 0 then Ignore
-    else if x > 0 && y > 0 then Both
-    else if x > 0 && y <= 0 then Removed
-    else if x <= 0 && y >= 0 then Added
+  let create visits_from visits_to =
+    if visits_from <= 0 && visits_to <= 0 then Ignore
+    else if visits_from > 0 && visits_to > 0 then Both
+    else if visits_from > 0 && visits_to <= 0 then Removed
+    else if visits_from <= 0 && visits_to >= 0 then Added
     else assert false
 
   let to_int = function Both -> 0 | Added -> 1 | Removed -> 2 | Ignore -> 3
 
   let of_int x =
-    assert (x >= 0 && x <= 3);
     match x with
     | 0 -> Both
     | 1 -> Added
@@ -27,7 +35,12 @@ module Status_line = struct
     | Removed -> "Removed"
     | Ignore -> "Ignore"
 
+  (* represent the aggregated comparison of a set of points *)
   type merge = { removed : int; both : int; added : int; ignored : int }
+
+  let merge_total { removed; both; added; ignored }= removed + both + added + ignored
+
+  let _merge_is_empty m = (merge_total m = 0)
 
   let _print_merge m =
     Printf.printf
@@ -44,9 +57,18 @@ module Status_line = struct
     List.iter (fun x -> Printf.printf " %s;" (to_string x)) l;
     print_string "]\n"
 
-  let merge l =
-    let acc = { removed = 0; both = 0; added = 0; ignored = 0 } in
+  let merge_empty = { removed = 0; both = 0; added = 0; ignored = 0 }
+  
+  let merge_add x y =
+    { removed = x.removed + y.removed;
+      both = x.both + y.both;
+      added = x.added + y.added;
+      ignored =x.ignored + y.ignored
+    }
 
+  let merge_sum ms = List.fold_left merge_add merge_empty ms
+
+  let merge l =
     List.fold_left
       (fun acc x ->
         let acc =
@@ -57,37 +79,75 @@ module Status_line = struct
           | Ignore -> { acc with ignored = acc.ignored + 1 }
         in
         acc)
-      acc l
+      merge_empty l
 
-  type line = Only_removed | Removed_and_add | Both | Only_added | Ignore
+  (* a summary of the aggregated comparison of a set of points
+     corresponding to one source-code line *)
+  type line =
+    Only_removed
+  (* we only lost coverage: [cov(to)] is a strict subset of [cov(from)]  *)
+  | Removed_and_add
+  (* some coverage were removed and some where added *)
+  | Both
+  (* the same set of points were covered in both traces: [cov(to) = cov(from)] *)
+  | Only_added
+  (* we only gained coverage: [cov(to)] is a strict superset of [cov(from)]  *)
+  | Ignore
+  (* no points on this line was visited in either trace *)
+  | Empty
+  (* the set of points was empty *)
 
-  let to_class : merge -> string =
-   fun merge ->
-    let removed = merge.removed in
-    let both = merge.both in
-    let added = merge.added in
-    let s =
-      match (removed, both, added) with
-      | r, 0, 0 when r > 0 -> "only-removed"
-      | r, _, a when r > 0 && a > 0 -> "removed-and-add"
-      | 0, b, 0 when b > 0 -> "both"
-      | 0, 0, a when a > 0 -> "only-added"
-      | _ -> ""
-    in
-    Printf.sprintf {|class="%s""|} s
-
-  let to_line : merge -> line =
-   fun merge ->
-    let removed = merge.removed in
-    let both = merge.both in
-    let added = merge.added in
-    match (removed, both, added) with
-    | r, 0, 0 when r > 0 -> Only_removed
-    | r, _, a when r > 0 && a > 0 -> Removed_and_add
-    | 0, b, 0 when b > 0 -> Both
-    | 0, 0, a when a > 0 -> Only_added
+  
+  let merge_to_line : merge -> line =
+    fun { removed; both; added; ignored } ->
+    match (removed, both, added, ignored) with
+    | 0, 0, 0, 0 -> Empty
+    | r, 0, 0, _ when r > 0 -> Only_removed
+    | r, _, a, _ when r > 0 && a > 0 -> Removed_and_add
+    | 0, b, 0, _ when b > 0 -> Both
+    | 0, 0, a, _ when a > 0 -> Only_added
     | _ -> Ignore
 
+  let line_to_class : line -> string =
+    fun line ->
+    let cls = match line with
+      | Only_removed -> "only-removed"
+      | Removed_and_add -> "removed-and-add"
+      | Both -> "both"
+      | Only_added -> "only-added"
+      | Ignore -> "ignore"
+      | Empty -> "empty"
+    in
+    Printf.sprintf {|class="%s"|} cls
+
+  let percentage_from_merge ({ removed; both; added; ignored=_ } as merge) =
+    let total = merge_total merge in
+    if total = 0 then
+      None
+    else
+      let open Float in
+      let total = of_int total in
+      let removed = of_int removed /. total in
+      (* let removed_and_add = of_int removed_and_add /. total in *)
+      let both = of_int both /. total in
+      let added = of_int added /. total in
+
+      let pct x = floor (x *. 100.0) |> Printf.sprintf "%.00f" in
+
+      let pct_removed = pct removed in
+      (* let pct_removed_and_add = pct removed_and_add in *)
+      let pct_both = pct both in
+      let pct_added = pct added in
+      let pct_ignore =
+        pct
+          (1.0 -.
+             (removed +. both +. added))
+      in
+      Some (pct_removed, pct_both, pct_added, pct_ignore)
+
+    module Stat = struct
+
+  (* a stat represents the aggregation of a set of lines *)
   type stat = {
     only_removed : int;
     removed_and_add : int;
@@ -96,7 +156,7 @@ module Status_line = struct
     total : int;
   }
 
-  let pp_stat {
+  let _pp_stat {
           only_removed ;
           removed_and_add ;
           both;
@@ -118,7 +178,7 @@ module Status_line = struct
       total = 0
     }
 
-  let stat_add { only_removed; removed_and_add; both; only_added; total } b =
+  let _stat_add { only_removed; removed_and_add; both; only_added; total } b =
     {
       only_removed = b.only_removed + only_removed;
       removed_and_add = b.removed_and_add + removed_and_add;
@@ -127,7 +187,7 @@ module Status_line = struct
       total = b.total + total;
     }
 
-  let stat_from_lines lines =
+  let _stat_from_lines lines =
     let only_removed = ref 0 in
     let removed_and_add = ref 0 in
     let both = ref 0 in
@@ -141,7 +201,9 @@ module Status_line = struct
           | Removed_and_add -> incr removed_and_add; incr total
           | Both -> incr both; incr total
           | Only_added -> incr only_added; incr total
-          | Ignore -> incr total)
+          | Ignore -> incr total;
+          | Empty -> ()
+        )
         lines
     in
     (* todo: hack to have 100% in files with no visitable lines *)
@@ -156,7 +218,7 @@ module Status_line = struct
         total = !total;
       }
 
-  let percentage_from_stat { only_removed; removed_and_add; both; only_added; total } =
+  let _percentage_from_stat { only_removed; removed_and_add; both; only_added; total } =
     let open Float in
     let total = of_int total in
     let only_removed = of_int only_removed /. total in
@@ -176,35 +238,39 @@ module Status_line = struct
            (only_removed +. both +. only_added +. removed_and_add))
     in
     (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore)
+
+    end
 end
+
+let tt_wrap ~html s = if html then Printf.sprintf "<tt>%s</tt>" s else s
 
 let colors_chart
       ?(with_titles = false)
       ?(with_tooltips = false)
-      ?(with_grey = false)
+      ?(with_ignored = false)
       ~cov_from_label
       ~cov_to_label
-      ~only_removed
-      ~removed_and_add
-      ~both
-      ~only_added
-      ~grey () =
+      merge_stats_pcts =
   let box t cls s  =
     Printf.sprintf
-      {|<div %sid="%s">%s</div>|}
-      (if with_tooltips then Printf.sprintf {|title="%s" |} t else "")
+      {|<div %sclass="%s">%s</div>|}
+      (if with_tooltips then Printf.sprintf {|title="%s" |} (t ~html:false) else "")
       cls
-      (if with_titles then t ^ ": " ^ s else s)
+      (if with_titles then (t ~html:true) ^ ": " ^ s else s)
+  in
+  let (removed, both, added, ignored) = match merge_stats_pcts with
+    | None -> "-", "-", "-", "-"
+    | Some (removed, both, added, ignored) ->
+       (removed ^ "%", both ^ "%", added ^ "%", ignored ^ "%")
   in
   Printf.sprintf
-    {|<div class="label" id="colors">
-       %s%s%s%s%s
+    {|<div class="colors label">
+       %s%s%s%s
    </div>|}
-    (box ("Coverage lost from " ^ cov_from_label) "colors-only-removed" only_removed)
-    (box "Mix of loss and win" "colors-removed-and-add" removed_and_add)
-    (box "Covered in both" "colors-both" both)
-    (box ("Coverage won in " ^ cov_to_label) "colors-only-added" only_added)
-    (if with_grey then (box "Covered in neither" "colors-grey" grey) else "")
+    (box (fun ~html -> "Coverage lost from " ^ (tt_wrap ~html cov_from_label)) "colors-only-removed" removed)
+    (box (fun ~html:_ -> "Covered in both") "colors-both" both)
+    (box (fun ~html -> "Coverage won in " ^ (tt_wrap ~html cov_to_label)) "colors-only-added" added)
+    (if with_ignored then (box (fun ~html:_ -> "Covered in neither") "colors-ignored" ignored) else "")
 
 let coverage cov =
   if cov = "" then raise (Invalid_argument "--x and --y must be present");
@@ -238,8 +304,10 @@ let theme_class = function
   | `Dark -> {| class="dark"|}
   | `Auto -> ""
 
-let make_title ~cov_from_label ~cov_to_label title =
-  Printf.sprintf "%s [%s vs. %s]" title cov_from_label cov_to_label
+let make_title ?(html=false) ~cov_from_label ~cov_to_label title =
+  Printf.sprintf "%s [%s vs. %s]" title
+    (tt_wrap ~html cov_from_label)
+    (tt_wrap ~html cov_to_label)
 
 let split_filename name =
   let dirname =
@@ -255,7 +323,7 @@ let percentage (visited, total) =
   if total = 0 then 100. else 100. *. float_of_int visited /. float_of_int total
 
 let output_html_index ~title theme filename ~cov_from_label ~cov_to_label
-    (files : (string * string * Status_line.stat) list) =
+    (files : (string * string * Status_line.merge) list) =
   Util.info "Writing index file...";
 
   let channel =
@@ -265,18 +333,17 @@ let output_html_index ~title theme filename ~cov_from_label ~cov_to_label
   in
   try
     let write format = Printf.fprintf channel format in
-
-    let stats_total =
-      List.fold_left
-        (fun acc (_, _, stats) -> Status_line.stat_add acc stats)
-        Status_line.stat_empty
-        files
+    
+    let merge_total =
+      files
+      |> List.map (fun (_, _, stats) -> stats)
+      |> Status_line.merge_sum
     in
     
-    let (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore) =
-      Status_line.percentage_from_stat stats_total in
+    let merge_total_pcts =
+      Status_line.percentage_from_merge merge_total in
 
-    let title = make_title ~cov_from_label ~cov_to_label title in
+    (* let title =  in *)
     write
       {|<!DOCTYPE html>
 <html lang="en"%s>
@@ -294,29 +361,24 @@ let output_html_index ~title theme filename ~cov_from_label ~cov_to_label
     <div id="files">
 |}
       (theme_class theme)
-      title
+      (make_title ~html:false ~cov_from_label ~cov_to_label title)
       cov_from_label cov_to_label
-      title
+      (make_title ~html:true ~cov_from_label ~cov_to_label title)
       (colors_chart
-                ~with_grey:true
-                ~with_titles:true
-                ~cov_to_label
-                ~cov_from_label
-                ~only_removed:(pct_only_removed ^ "%")
-                ~removed_and_add:(pct_removed_and_add ^ "%")
-                ~both:(pct_both ^ "%")
-                ~only_added:(pct_only_added ^ "%")
-                ~grey:(pct_ignore ^ "%")
-                ()) ;
+         ~with_titles:true
+         ~with_ignored:true
+         ~cov_from_label
+         ~cov_to_label
+         merge_total_pcts) ;
 
     let null = open_out "/dev/null" in
     files
     |> List.iter (fun (
                     name,
                     html_file,
-                    stats
+                    merge_total
                   ) ->
-           let dbg =
+           let _dbg =
              let ch =
                if
                  (* name = "src/lib_shell/validator_event.ml" *)
@@ -327,13 +389,24 @@ let output_html_index ~title theme filename ~cov_from_label ~cov_to_label
                  null
              in Printf.fprintf ch
            in
-           dbg "Name: %s\n" name ;
+           (* dbg "Name: %s\n" name ; *)
 
-           dbg "Stat: %s\n" (Status_line.pp_stat stats) ;
+           (* dbg "Stat: %s\n" (Status_line.pp_stat stats) ; *)
            
-           let (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore) =
-             Status_line.percentage_from_stat stats in
+           let merge_total_pcts =
+             Status_line.percentage_from_merge merge_total in
 
+           let meter_from_merge_pcts =
+             let wrap s = {| <span class="meter"> |} ^ s ^ {| </span> |} in
+             function
+             | None -> wrap ""
+             | Some (pct_removed, pct_both, pct_added, _pct_ignore) ->
+                wrap @@
+                  Printf.sprintf {|
+                                  <span class="only-removed" style="width: %s%%"></span><span class="both" style="width: %s%%"></span><span class="only-added" style="width: %s%%"></span>
+                                  |} pct_removed pct_both pct_added
+           in
+               
            let dirname, basename = split_filename name in
            let relative_html_file =
              if Filename.is_relative html_file then html_file
@@ -344,27 +417,20 @@ let output_html_index ~title theme filename ~cov_from_label ~cov_to_label
            in
            write
              {|      <div>
-        <span class="meter">
-          <span class="only-removed" style="width: %s%%"></span><span class="removed_and_add" style="width: %s%%"></span><span class="both" style="width: %s%%"></span><span class="only-added" style="width: %s%%"></span>
-        </span>
+        %s
         <span class="percentage">%s</span>
         <a href="%s">
           <span class="dirname">%s</span>%s
         </a>
       </div>
               |}
-             pct_only_removed pct_removed_and_add pct_both pct_only_added
+             (meter_from_merge_pcts merge_total_pcts)
              (colors_chart
-                ~with_grey:true
+                ~with_ignored:true
                 ~with_tooltips:true
                 ~cov_to_label
                 ~cov_from_label
-                ~only_removed:(pct_only_removed ^ "%")
-                ~removed_and_add:(pct_removed_and_add ^ "%")
-                ~both:(pct_both ^ "%")
-                ~only_added:(pct_only_added ^ "%")
-                ~grey:(pct_ignore ^ "%")
-                ())
+                merge_total_pcts)
              relative_html_file dirname basename);
 
     write {|    </div>
@@ -469,7 +535,7 @@ let output_for_source_file
   let highlight_js = Filename.concat path_to_report_root "highlight.pack.js" in
   let index_html = Filename.concat path_to_report_root "index.html" in
   let lines_status = ref [] in
-  let status_line_stats = (try
+  let merge_total = (try
      let lines, line_count =
        let rec read number acc =
          let start_ofs = pos_in in_channel in
@@ -492,10 +558,13 @@ let output_for_source_file
        read 1 []
      in
 
-     let status_line_stats =
-       let merges = List.map Status_line.merge !lines_status in
-       let lines = List.map Status_line.to_line merges in
-       Status_line.stat_from_lines lines
+     let merge_total =
+       !lines_status |>
+         List.map Status_line.merge |>
+         Status_line.merge_sum
+       (* let merges = List.map Status_line.merge !lines_status in
+        * let lines = List.map Status_line.merge_to_line merges in
+        * Status_line.stat_from_lines lines *)
      in
 
      let class_of_visited = function _ -> "" in
@@ -528,23 +597,15 @@ let output_for_source_file
 |}
        (theme_class theme)
        basename
-       (make_title ~cov_from_label ~cov_to_label title)
+       (make_title ~html:false ~cov_from_label ~cov_to_label title)
        file_coverage filename style_css
        highlight_js index_html dirname basename
-       (
-        let (pct_only_removed, pct_removed_and_add, pct_both, pct_only_added, pct_ignore) =
-             Status_line.percentage_from_stat status_line_stats in
-        colors_chart
-          ~with_grey:true
+       (colors_chart
           ~with_titles:true
-          ~cov_to_label
+          ~with_ignored:true
           ~cov_from_label
-          ~only_removed:(pct_only_removed ^ "%")
-          ~removed_and_add:(pct_removed_and_add ^ "%")
-          ~both:(pct_both ^ "%")
-          ~only_added:(pct_only_added ^ "%")
-          ~grey:(pct_ignore ^ "%")
-          ());
+          ~cov_to_label
+          (Status_line.percentage_from_merge merge_total));
 
      (* Navigation bar items. *)
      lines
@@ -572,7 +633,7 @@ let output_for_source_file
      lines
      |> List.iter (fun (number, _, _, _, status) ->
             write "<a id=\"L%i\"></a><span %s> </span>\n" number
-              Status_line.(merge status |> to_class));
+              Status_line.(merge status |> merge_to_line |> line_to_class));
 
      write
        {|</pre>
@@ -611,7 +672,7 @@ let output_for_source_file
 </html>
 |}
        coverage_js;
-     status_line_stats
+     merge_total
    with e ->
      close_in_noerr in_channel;
      close_out_noerr out_channel;
@@ -620,7 +681,7 @@ let output_for_source_file
   close_in_noerr in_channel;
   close_out_noerr out_channel;
 
-  status_line_stats
+  merge_total
 
 (* Assets, such as CSS and JavaScript files. *)
 
