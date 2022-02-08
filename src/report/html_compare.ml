@@ -516,7 +516,7 @@ let output_string_to_separate_file content filename =
 
 let output ~to_directory ~title ~tab_size ~source_paths ~ignore_missing_files
     ~cov_x ~cov_y =
-  let theme = `Dark in
+  let theme = `Light in
 
   let cov_x = coverage cov_x in
   let cov_y = coverage cov_y in
@@ -552,13 +552,15 @@ let output ~to_directory ~title ~tab_size ~source_paths ~ignore_missing_files
   output_html_index title theme
     (Filename.concat to_directory "index.html")
     (List.sort
-       (fun (_, _, x) (_, _, y) ->
-         let open Status_line in
-         match compare x.only_removed y.only_removed with
-         | 0 -> compare x.removed_and_add y.removed_and_add
-         | x -> x)
-       files
-    |> List.rev);
+       (fun (name_x, _, _x) (name_y, _, _y) ->
+         String.compare name_x name_y
+
+         (* let open Status_line in
+          * match compare x.only_removed y.only_removed with
+          * | 0 -> compare x.removed_and_add y.removed_and_add
+          * | x -> x *)
+       )
+       files);
 
   (* Write the asset files. *)
   output_string_to_separate_file Assets.js
